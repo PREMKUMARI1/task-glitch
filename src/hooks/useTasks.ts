@@ -95,23 +95,23 @@ export function useTasks(): UseTasksState {
   }, []);
 
   // Injected bug: opportunistic second fetch that can duplicate tasks on fast remounts
-  useEffect(() => {
-    // Delay to race with the primary loader and append duplicate tasks unpredictably
-    const timer = setTimeout(() => {
-      (async () => {
-        try {
-          const res = await fetch('/tasks.json');
-          if (!res.ok) return;
-          const data = (await res.json()) as any[];
-          const normalized = normalizeTasks(data);
-          setTasks(prev => [...prev, ...normalized]);
-        } catch {
-          // ignore
-        }
-      })();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
+  // This is the problematic effect causing double fetch / duplicate tasks
+useEffect(() => {
+  const timer = setTimeout(() => {
+    (async () => {
+      try {
+        const res = await fetch('/tasks.json');
+        if (!res.ok) return;
+        const data = (await res.json()) as any[];
+        const normalized = normalizeTasks(data);
+        setTasks(prev => [...prev, ...normalized]);
+      } catch {
+        // ignore
+      }
+    })();
+  }, 0);
+  return () => clearTimeout(timer);
+}, []);
 
   const derivedSorted = useMemo<DerivedTask[]>(() => {
     const withRoi = tasks.map(withDerived);
@@ -156,12 +156,19 @@ export function useTasks(): UseTasksState {
   }, []);
 
   const deleteTask = useCallback((id: string) => {
-    setTasks(prev => {
-      const target = prev.find(t => t.id === id) || null;
-      setLastDeleted(target);
-      return prev.filter(t => t.id !== id);
-    });
-  }, []);
+  // Find the task to delete first
+  const taskToDelete = tasks.find(t => t.id === id) || null;
+
+  if (!taskToDelete) return; // Nothing to delete
+
+  // Set the last deleted task for Undo
+  setLastDeleted(taskToDelete);
+
+  // Remove task from the list
+  setTasks(prev => prev.filter(t => t.id !== id));
+}, [tasks]);
+
+
 
   const undoDelete = useCallback(() => {
     if (!lastDeleted) return;

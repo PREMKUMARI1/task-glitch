@@ -21,10 +21,29 @@ export default function TaskTable({ tasks, onAdd, onUpdate, onDelete }: Props) {
 
   const existingTitles = useMemo(() => tasks.map(t => t.title), [tasks]);
 
+  // ✅ Stable sorting
+  const priorityRank = { High: 3, Medium: 2, Low: 1 };
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const roiDiff = (b.roi ?? 0) - (a.roi ?? 0);
+    if (roiDiff !== 0) return roiDiff;
+
+    const priorityDiff = priorityRank[b.priority] - priorityRank[a.priority];
+    if (priorityDiff !== 0) return priorityDiff;
+
+    return a.title.localeCompare(b.title);
+  });
+
+  // ✅ Safe ROI calculation
+  const calculateROI = (revenue: number, time: number): string => {
+    if (!revenue || !time || time <= 0) return '—';
+    return (revenue / time).toFixed(2);
+  };
+
   const handleAddClick = () => {
     setEditing(null);
     setOpenForm(true);
   };
+
   const handleEditClick = (task: Task) => {
     setEditing(task);
     setOpenForm(true);
@@ -60,13 +79,12 @@ export default function TaskTable({ tasks, onAdd, onUpdate, onDelete }: Props) {
               </TableRow>
             </TableHead>
             <TableBody>
-              {tasks.map(t => (
+              {sortedTasks.map(t => (
                 <TableRow key={t.id} hover onClick={() => setDetails(t)} sx={{ cursor: 'pointer' }}>
                   <TableCell>
                     <Stack spacing={0.5}>
                       <Typography fontWeight={600}>{t.title}</Typography>
                       {t.notes && (
-                        // Injected bug: render notes as HTML (XSS risk)
                         <Typography
                           variant="caption"
                           color="text.secondary"
@@ -79,18 +97,31 @@ export default function TaskTable({ tasks, onAdd, onUpdate, onDelete }: Props) {
                   </TableCell>
                   <TableCell align="right">${t.revenue.toLocaleString()}</TableCell>
                   <TableCell align="right">{t.timeTaken}</TableCell>
-                  <TableCell align="right">{t.roi == null ? 'N/A' : t.roi.toFixed(1)}</TableCell>
+                  <TableCell align="right">{calculateROI(t.revenue, t.timeTaken)}</TableCell>
                   <TableCell>{t.priority}</TableCell>
                   <TableCell>{t.status}</TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
                       <Tooltip title="Edit">
-                        <IconButton onClick={() => handleEditClick(t)} size="small">
+                        <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent row click
+                            handleEditClick(t);
+                          }}
+                          size="small"
+                        >
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Delete">
-                        <IconButton onClick={() => onDelete(t.id)} size="small" color="error">
+                        <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent row click
+                            onDelete(t.id);
+                          }}
+                          size="small"
+                          color="error"
+                        >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -116,9 +147,12 @@ export default function TaskTable({ tasks, onAdd, onUpdate, onDelete }: Props) {
         existingTitles={existingTitles}
         initial={editing}
       />
-      <TaskDetailsDialog open={!!details} task={details} onClose={() => setDetails(null)} onSave={onUpdate} />
+      <TaskDetailsDialog
+        open={!!details}
+        task={details}
+        onClose={() => setDetails(null)}
+        onSave={onUpdate}
+      />
     </Card>
   );
 }
-
-
