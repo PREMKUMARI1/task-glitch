@@ -95,7 +95,7 @@ export default function TaskForm({
       notes: notes.trim() || undefined,
 
       // ✅ REQUIRED FIELD (FIXES BUILD ERROR)
-      createdAt: initial?.createdAt ?? new Date(),
+      createdAt: initial?.createdAt ?? new Date().toISOString(),
 
       ...(initial ? { id: initial.id } : {}),
     };
